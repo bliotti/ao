@@ -67,6 +67,7 @@ export async function createProcessMemoryCache ({ MAX_SIZE, TTL, DRAIN_TO_FILE_T
   const clearTtlTimer = clearTimerWith(ttlTimers)
 
   const drainToFileTimers = new Map()
+  // eslint-disable-next-line
   const clearDrainToFileTimer = clearTimerWith(drainToFileTimers)
 
   /**
@@ -110,6 +111,7 @@ export async function createProcessMemoryCache ({ MAX_SIZE, TTL, DRAIN_TO_FILE_T
     },
     set: (key, value) => {
       clearTtlTimer(key)
+      clearDrainToFileTimer(key)
       /**
        * Calling delete will trigger the disposeAfter callback on the cache
        * to be called
@@ -117,6 +119,7 @@ export async function createProcessMemoryCache ({ MAX_SIZE, TTL, DRAIN_TO_FILE_T
       const ttl = setTimeout(() => {
         data.delete(key)
         ttlTimers.delete(key)
+        clearDrainToFileTimer(key)
       }, TTL).unref()
 
       ttlTimers.set(key, ttl)
@@ -131,26 +134,25 @@ export async function createProcessMemoryCache ({ MAX_SIZE, TTL, DRAIN_TO_FILE_T
        * On subsequent read, client may need to read the memory back in from
        * a file
        */
-      if (value.Memory && DRAIN_TO_FILE_THRESHOLD) {
-        clearDrainToFileTimer(key)
-        const drainToFile = setTimeout(async () => {
-          const file = await writeProcessMemoryFile({ Memory: value.Memory, evaluation: value.evaluation })
-          /**
-           * Update the cache entry with the file reference containing the memory
-           * and remove the reference to the Memory, so that it can be GC'd.
-           *
-           * Since we are setting on the underlying data store directly,
-           * this won't reset the ttl
-           *
-           * Note we do not mutate the old object, and instead cache a new one,
-           * in case the old object containing the memory is in use elsewhere
-           */
-          data.set(key, { evaluation: value.evaluation, File: file, Memory: undefined })
-          drainToFileTimers.delete(key)
-        }, DRAIN_TO_FILE_THRESHOLD).unref()
+      // if (value.Memory && DRAIN_TO_FILE_THRESHOLD) {
+      //   const drainToFile = setTimeout(async () => {
+      //     const file = await writeProcessMemoryFile({ Memory: value.Memory, evaluation: value.evaluation })
+      //     /**
+      //      * Update the cache entry with the file reference containing the memory
+      //      * and remove the reference to the Memory, so that it can be GC'd.
+      //      *
+      //      * Since we are setting on the underlying data store directly,
+      //      * this won't reset the ttl
+      //      *
+      //      * Note we do not mutate the old object, and instead cache a new one,
+      //      * in case the old object containing the memory is in use elsewhere
+      //      */
+      //     data.set(key, { evaluation: value.evaluation, File: file, Memory: undefined })
+      //     drainToFileTimers.delete(key)
+      //   }, DRAIN_TO_FILE_THRESHOLD).unref()
 
-        drainToFileTimers.set(key, drainToFile)
-      }
+      //   drainToFileTimers.set(key, drainToFile)
+      // }
 
       return data.set(key, value)
     },
